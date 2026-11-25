@@ -50,7 +50,7 @@ class Relay(BaseHTTPRequestHandler):
             self.send_response(status)
             self.end_headers()
             self.wfile.write(json.dumps(result).encode())
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionError):
             pass
 
     def log_message(self, *args):
@@ -218,6 +218,9 @@ class ClusterTests(unittest.TestCase):
         created = self.submit(leader, "create", "CREATE TABLE test (id INTEGER PRIMARY KEY)")
         self.caught_up(list(self.members), created["index"])
         followers = [node for node in self.members if node != leader]
+        # Prevent late proxy deliveries from the isolated leader when the
+        # followers restart. A timed-out RPC can still arrive at its target.
+        self.blocked.update((leader, node) for node in followers)
         for node in followers:
             self.stop(node)
 
@@ -237,6 +240,7 @@ class ClusterTests(unittest.TestCase):
         read = self.submit(successor, "new-read", "SELECT * FROM test")
         self.assertEqual(read["rows"], [[42]])
 
+        self.blocked.clear()
         self.start(leader)
         self.caught_up(list(self.members), read["index"])
         self.stop(leader)
