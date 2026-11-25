@@ -1,4 +1,47 @@
-# RaftDB v0.2.0
+# RaftDB
+
+[![CI](https://github.com/andreyfemboyev/raftfb_extended/actions/workflows/ci.yml/badge.svg)](https://github.com/andreyfemboyev/raftfb_extended/actions/workflows/ci.yml)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-orange)
+
+**An experimental distributed SQL database with Raft consensus and native Bitcask-inspired storage.**
+
+Built in Python with a dependency-free core. Developed with AI-assisted engineering using OpenAI Codex and ChatGPT.
+
+> Experimental software for learning and research. Not recommended for production or untrusted networks.
+
+[Architecture](ARCHITECTURE.md) · [Consistency](CONSISTENCY.md) · [Storage format](STORAGE_FORMAT.md) · [Benchmarks](benchmarks/README.md) · [Roadmap](ROADMAP.md)
+
+## Highlights
+
+- Custom SQL engine, replicated state machine and automatic leader election.
+- Segmented binary journals, checksums, snapshots and crash recovery.
+- Interactive SQL shell and Python client.
+- CSV import, CSV/JSON export and optional pandas/NumPy integration.
+
+## Quick start
+
+```sh
+git clone https://github.com/andreyfemboyev/raftfb_extended.git
+cd raftfb_extended
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install .
+```
+
+## Performance
+
+Reported single-client, three-node loopback benchmark (384 inserts, Python 3.12):
+
+| Metric | v0.1 JSON | v0.2 native |
+| --- | ---: | ---: |
+| Inserts/s | 12.64 | 378.36 |
+| Indexed reads/s | 12.44 | 376.51 |
+| Median insert latency | 79.010 ms | 2.556 ms |
+| Durable journal operations/s | 285.55 | 2,455.40 |
+
+The end-to-end improvement includes replication scheduling changes, not only storage. These measurements are not general performance guarantees. See [methodology and raw results](benchmarks/README.md).
 
 RaftDB is a fixed-membership relational database for Python 3.10+ on Linux/POSIX. It uses a custom SQL engine, Raft, and a native Bitcask-style relational store. The database and its CLI use the Python standard library.
 
@@ -100,4 +143,4 @@ See [benchmark methodology and results](benchmarks/README.md), [architecture](AR
 
 ## Attribution and licensing
 
-RaftDB retains its existing source history and authorship. The new storage design adapts the append-only segments, CRC checking, on-demand values, and atomic generation publication from femboydevs' BitcaskDB. GitHub lists no license and neither inspected repository contains a license file. This integration adds no license declaration. [RaftDB base](https://github.com/andreyfemboyev/raftdb/tree/7477321054526680df4652414c9b7a33abbc5bc3) · [BitcaskDB design reference](https://github.com/andreyfemboyev/bitcask-db/tree/e6beaa06130815811cd1048e8e89bfea5e726ad9)
+RaftDB retains its existing source history and authorship. The new storage design adapts the append-only segments, CRC checking, on-demand values, and atomic generation publication from femboydevs' BitcaskDB. This repository is distributed under the [MIT License](LICENSE). [RaftDB base](https://github.com/andreyfemboyev/raftdb/tree/7477321054526680df4652414c9b7a33abbc5bc3) · [BitcaskDB design reference](https://github.com/andreyfemboyev/bitcask-db/tree/e6beaa06130815811cd1048e8e89bfea5e726ad9)
