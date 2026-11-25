@@ -1,4 +1,4 @@
-# RaftDB
+# RaftDB Extended
 
 [![CI](https://github.com/andreyfemboyev/raftfb_extended/actions/workflows/ci.yml/badge.svg)](https://github.com/andreyfemboyev/raftfb_extended/actions/workflows/ci.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -12,6 +12,10 @@ Built in Python with a dependency-free core. Developed with AI-assisted engineer
 > Experimental software for learning and research. Not recommended for production or untrusted networks.
 
 [Architecture](ARCHITECTURE.md) · [Consistency](CONSISTENCY.md) · [Storage format](STORAGE_FORMAT.md) · [Benchmarks](benchmarks/README.md) · [Roadmap](ROADMAP.md)
+
+[Releases](https://github.com/andreyfemboyev/raftfb_extended/releases) · [Original RaftDB](https://github.com/andreyfemboyev/raftdb) · [Portfolio](https://github.com/andreyfemboyev/portfolio)
+
+The extended development of RaftDB adds native segmented storage, snapshots, maintenance tools and richer client features. The original repository remains a simpler reference implementation.
 
 ## Highlights
 
@@ -70,6 +74,20 @@ The SQL client follows leader hints and retries. In the shell, use one statement
 Use `--config PATH` on each command to select a different cluster. All nodes must share the same configuration, and each replica needs its own data directory. The [single-node example](examples/single.json) is suitable for local experiments. The [SQL examples](examples/tasks.sql) contain individual statements that can be submitted one at a time.
 
 Each server accepts `--segment-size BYTES` (default 16 MiB) and `--snapshot-interval ENTRIES` (default 256 applied entries). `--bind` overrides the listening host while retaining the advertised port. Use a private, trusted network. The HTTP listener accepts unauthenticated replica, client, and maintenance requests.
+
+## Demonstrate leader failover
+
+Start the three replicas and insert the example tasks above. Run `python -m raftdb status` to identify the leader, stop that process with Ctrl+C, and check status until a new leader appears. Repeat the SELECT with a fresh request ID. Restart the stopped replica with its original data directory to let it catch up. This local experiment is not a production availability guarantee.
+
+```mermaid
+flowchart TD
+    C[SQL client] --> L[Raft leader]
+    L --> F1[Follower 1]
+    L --> F2[Follower 2]
+    L --> S[Local state machine and storage]
+    F1 --> S1[Local state machine and storage]
+    F2 --> S2[Local state machine and storage]
+```
 
 ## SQL
 
