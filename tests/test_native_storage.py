@@ -147,6 +147,7 @@ from raftdb.kv import PUT
 from test_native_storage import append, command, MEMBERS, CLUSTER, SMALL_SEGMENT
 from raftdb.raft import Node
 from raftdb.storage import Storage
+from raftdb.platform_support import atomic_replace
 
 node = Node("a", MEMBERS, CLUSTER, Storage(sys.argv[1], segment_size=SMALL_SEGMENT))
 write = journal.write_frame
@@ -196,6 +197,7 @@ from test_native_storage import append, command, MEMBERS, CLUSTER, SMALL_SEGMENT
 from raftdb.kv import KV
 from raftdb.raft import Node
 from raftdb.storage import Storage
+from raftdb.platform_support import atomic_replace
 
 node = Node("a", MEMBERS, CLUSTER, Storage(sys.argv[1], segment_size=SMALL_SEGMENT))
 write = KV.write
@@ -261,6 +263,7 @@ sys.path.insert(0, {str(ROOT / 'tests')!r})
 from test_native_storage import MEMBERS, CLUSTER, SMALL_SEGMENT
 from raftdb.raft import Node
 from raftdb.storage import Storage
+from raftdb.platform_support import atomic_replace
 
 node = Node("a", MEMBERS, CLUSTER, Storage(Path(sys.argv[1]) / sys.argv[2], segment_size=SMALL_SEGMENT))
 def interrupted(source, destination):
@@ -295,6 +298,7 @@ from test_native_storage import MEMBERS, CLUSTER, SMALL_SEGMENT
 from raftdb.raft import Node
 from raftdb.relational import Relational
 from raftdb.storage import Storage
+from raftdb.platform_support import atomic_replace
 
 node = Node("a", MEMBERS, CLUSTER, Storage(Path(sys.argv[1]) / "target", segment_size=SMALL_SEGMENT))
 with patch.object(Relational, "restore", side_effect=lambda *args: os._exit(86)):
