@@ -12,6 +12,7 @@ import sys
 from tempfile import TemporaryDirectory
 from time import perf_counter, sleep
 
+from .platform_support import process_memory
 from .client import Client, literal
 from .raft import rpc
 
@@ -142,14 +143,10 @@ class Cluster:
         )
 
     def memory(self):
-        rss, peaks = [], []
-        for process in self.processes.values():
-            path = Path(f"/proc/{process.pid}/status")
-            if not path.exists():
-                return None
-            values = dict(line.split(":", 1) for line in path.read_text().splitlines())
-            rss.append(int(values["VmRSS"].split()[0]) * 1024)
-            peaks.append(int(values["VmHWM"].split()[0]) * 1024)
+        samples = [process_memory(process.pid) for process in self.processes.values()]
+        if not samples or any(sample is None for sample in samples):
+            return None
+        rss, peaks = zip(*samples)
         return {"cluster_rss_bytes": sum(rss), "max_node_peak_rss_bytes": max(peaks)}
 
 

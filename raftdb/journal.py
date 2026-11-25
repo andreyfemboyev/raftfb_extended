@@ -1,4 +1,4 @@
-"""Checksummed segmented files and atomic generation publication on POSIX."""
+"""Checksummed segmented files and atomic generation publication."""
 
 import os
 import re
@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 from zlib import crc32
+
+from .platform_support import WINDOWS, atomic_replace, atomic_write, create_directory, sync_directory, sync_file
 
 
 DEFAULT_SEGMENT_SIZE = 16 * 1024 * 1024
@@ -33,18 +35,14 @@ class Location:
     offset: int
 
 
-def sync_directory(directory):
-    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
 def ensure_directory(directory):
     if not directory.exists():
         ensure_directory(directory.parent)
-        directory.mkdir(exist_ok=True, mode=0o700)
+        try:
+            create_directory(directory)
+        except FileExistsError:
+            if not directory.is_dir():
+                raise
         sync_directory(directory.parent)
 
 
@@ -82,7 +80,7 @@ class Journal:
         self.segment_size = segment_size
         self.active = None
         if create:
-            directory.mkdir(mode=0o700)
+            create_directory(directory)
             self.number = 1
             self.active = self.create_segment(1)
         else:
@@ -99,9 +97,13 @@ class Journal:
         return self.directory / f"{number:020d}.seg"
 
     def create_segment(self, number):
-        file = self.path(number).open("x+b")
+        path = self.path(number)
+        if WINDOWS:
+            atomic_write(path, lambda file: None)
+            return path.open("r+b")
+        file = path.open("x+b")
         try:
-            os.fsync(file.fileno())
+            sync_file(file)
             sync_directory(self.directory)
         except BaseException:
             file.close()
@@ -120,8 +122,7 @@ class Journal:
                         if mode != "r+b":
                             raise
                         file.truncate(offset)
-                        file.flush()
-                        os.fsync(file.fileno())
+                        sync_file(file)
                         self.size = offset
                         break
                     if frame is None:
@@ -156,8 +157,7 @@ class Journal:
         return frame
 
     def sync(self):
-        self.active.flush()
-        os.fsync(self.active.fileno())
+        sync_file(self.active)
 
     def close(self):
         if self.active is not None:
@@ -220,12 +220,11 @@ class Generations:
         journal.sync()
         sync_directory(journal.directory)
         temporary = self.root / "CURRENT.tmp"
-        with temporary.open("w", encoding="ascii") as target:
-            target.write(journal.directory.name + "\n")
-            target.flush()
-            os.fsync(target.fileno())
+        with temporary.open("wb") as target:
+            target.write((journal.directory.name + "\n").encode("ascii"))
+            sync_file(target)
         sync_directory(self.root)
-        os.replace(temporary, self.pointer)
+        atomic_replace(temporary, self.pointer)
         sync_directory(self.root)
 
     def retire(self, journal):

@@ -12,6 +12,7 @@ import time
 import traceback
 
 from .journal import CorruptionError
+from .platform_support import sync_file
 from .relational import Relational
 from .storage import BATCH_SIZE, Storage, fingerprint
 
@@ -400,8 +401,7 @@ class Node:
                 target.write(data)
                 received += len(data)
                 if received == info["size"]:
-                    target.flush()
-                    os.fsync(target.fileno())
+                    sync_file(target)
             if received < info["size"]:
                 self.incoming = (transfer, received)
                 return {"term": self.term, "offset": received}

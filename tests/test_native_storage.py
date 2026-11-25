@@ -225,15 +225,15 @@ import os, sys
 from pathlib import Path
 from unittest.mock import patch
 from raftdb.kv import KV
+from raftdb.platform_support import atomic_replace
 
 root = Path(sys.argv[1]) / sys.argv[2]
 store = KV(root, 90)
-replace = os.replace
 def interrupted(source, destination):
     if sys.argv[2] == "after":
-        replace(source, destination)
+        atomic_replace(source, destination)
     os._exit(86)
-with patch("raftdb.journal.os.replace", interrupted):
+with patch("raftdb.journal.atomic_replace", interrupted):
     store.compact()
 """, boundary)
                 self.assertEqual((root / "CURRENT").read_text() != before, boundary == "after")
@@ -263,12 +263,11 @@ from raftdb.raft import Node
 from raftdb.storage import Storage
 
 node = Node("a", MEMBERS, CLUSTER, Storage(Path(sys.argv[1]) / sys.argv[2], segment_size=SMALL_SEGMENT))
-replace = os.replace
 def interrupted(source, destination):
     if sys.argv[2] == "after":
-        replace(source, destination)
+        atomic_replace(source, destination)
     os._exit(86)
-with patch("raftdb.journal.os.replace", interrupted):
+with patch("raftdb.journal.atomic_replace", interrupted):
     node.make_snapshot()
 """, boundary)
                 recovered = self.open_node(root)

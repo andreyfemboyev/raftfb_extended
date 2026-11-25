@@ -1,7 +1,6 @@
 """Dedicated durable Raft journal, indexed by absolute log position."""
 
 import errno
-import fcntl
 import hashlib
 import json
 import os
@@ -10,8 +9,9 @@ import re
 import shutil
 import struct
 
+from .platform_support import WINDOWS, atomic_write, lock_directory, sync_file
 from .journal import (
-    CorruptionError, DEFAULT_SEGMENT_SIZE, Generations, Journal, ensure_directory, sync_directory,
+    CorruptionError, DEFAULT_SEGMENT_SIZE, Generations, Journal, ensure_directory,
 )
 
 
@@ -203,10 +203,9 @@ class Storage:
             ensure_directory(self.directory)
         self.path = self.directory / "raft.json"
         self.native_marker = self.directory / "NATIVE"
-        self.lock = (self.directory / "lock").open("a" if repair else "r")
+        self.lock = lock_directory(self.directory / "lock", create=repair)
         self.log = None
         try:
-            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if self.native_marker.exists() and not (self.directory / "raft" / "CURRENT").is_file():
                 raise CorruptionError("Native Raft generation pointer is missing")
             self.generations = Generations(self.directory / "raft", segment_size, existing=not repair)
@@ -234,9 +233,7 @@ class Storage:
         else:
             self.log.record(META, encode_json([identity, None]))
         if not self.native_marker.exists():
-            with self.native_marker.open("xb") as marker:
-                os.fsync(marker.fileno())
-            sync_directory(self.directory)
+            atomic_write(self.native_marker, lambda file: None)
 
     def migrate(self, identity):
         with self.path.open(encoding="utf-8") as file:
@@ -278,6 +275,10 @@ class Storage:
     def stage_snapshot(source, target):
         # Snapshot files are immutable. Reusing the inode avoids copying a
         # snapshot when a generation is rewritten to discard obsolete edits.
+        if WINDOWS:
+            with source.open("rb") as original:
+                atomic_write(target, lambda file: shutil.copyfileobj(original, file, 256 * 1024))
+            return
         try:
             os.link(source, target)
         except OSError as error:
@@ -285,8 +286,7 @@ class Storage:
                 raise
             with source.open("rb") as original, target.open("xb") as file:
                 shutil.copyfileobj(original, file, 256 * 1024)
-                file.flush()
-                os.fsync(file.fileno())
+                sync_file(file)
 
     def replace(self, identity, snapshot, source, first, *, legacy=None):
         old = self.log

@@ -8,9 +8,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python: ["3.10", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v6
@@ -19,4 +20,4 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m compileall -q raftdb tests benchmarks
       - run: python -W error::ResourceWarning -m unittest discover -s tests -v
-      - run: python -m pip wheel --no-deps --wheel-dir /tmp/raftdb-wheels .
+      - run: python -m pip wheel --no-deps --wheel-dir dist/wheels .

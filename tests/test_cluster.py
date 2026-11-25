@@ -13,6 +13,7 @@ import time
 import unittest
 
 from raftdb.client import Client
+from raftdb.platform_support import WINDOWS
 from raftdb.raft import SNAPSHOT_CHUNK, rpc
 from raftdb.relational import Relational
 from raftdb.storage import Storage
@@ -68,22 +69,26 @@ class ClusterTests(unittest.TestCase):
         self.relays = []
         self.addCleanup(self.stop_relays)
         self.addCleanup(self.stop_all)
+        proxies = {}
         sockets = []
         try:
             for node in ("a", "b", "c"):
-                reservation = socket.socket()
-                sockets.append(reservation)
-                reservation.bind(("127.0.0.1", 0))
-                self.members[node] = reservation.getsockname()
+                for addresses in (self.members, proxies):
+                    reservation = socket.socket()
+                    sockets.append(reservation)
+                    reservation.bind(("127.0.0.1", 0))
+                    addresses[node] = reservation.getsockname()
         finally:
             for reservation in sockets:
                 reservation.close()
         self.config.write_text(json.dumps({
             "cluster": "integration",
-            "nodes": {node: f"127.0.0.2:{port}" for node, (_, port) in self.members.items()},
+            "nodes": {node: f"{host}:{port}" for node, (host, port) in proxies.items()},
         }))
+        # The peer config points to the relays; the CLI test config uses the
+        # same peer addresses so that the fixed-membership fingerprint matches.
         for member, destination in self.members.items():
-            relay = ThreadingHTTPServer(("127.0.0.2", destination[1]), Relay)
+            relay = ThreadingHTTPServer(proxies[member], Relay)
             relay.member, relay.destination, relay.blocked = member, destination, self.blocked
             thread = threading.Thread(target=relay.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
             self.relays.append((relay, thread))
@@ -96,7 +101,7 @@ class ClusterTests(unittest.TestCase):
             self.processes[node] = subprocess.Popen(
                 [sys.executable, "-m", "raftdb", "serve", "--node", node,
                  "--data", str(self.directory / node), "--config", str(self.config),
-                 "--bind", "127.0.0.1", "--snapshot-interval", "12", "--segment-size", "65536"],
+                 "--bind", "127.0.0.1", "--listen-port", str(self.members[node][1]), "--snapshot-interval", "12", "--segment-size", "65536"],
                 cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
             )
 
@@ -324,15 +329,19 @@ class ClusterTests(unittest.TestCase):
             self.assertIn("snapshot_bytes", result.stdout)
         # Read using the platform's readline so both GNU readline and libedit
         # history encodings are accepted.
-        saved = subprocess.check_output(
-            [sys.executable, "-c", (
-                "import json, readline, sys; readline.read_history_file(sys.argv[1]); "
-                "print(json.dumps([readline.get_history_item(i) for i in "
-                "range(1, readline.get_current_history_length() + 1)]))"
-            ), str(history)],
-            text=True,
-        )
-        self.assertEqual(json.loads(saved), [
+        if WINDOWS:
+            saved = history.read_text(encoding="utf-8").splitlines()
+        else:
+            saved = subprocess.check_output(
+                [sys.executable, "-c", (
+                    "import json, readline, sys; readline.read_history_file(sys.argv[1]); "
+                    "print(json.dumps([readline.get_history_item(i) for i in "
+                    "range(1, readline.get_current_history_length() + 1)]))"
+                ), str(history)],
+                text=True,
+            )
+            saved = json.loads(saved)
+        self.assertEqual(saved, [
             "SELECT name FROM demo", ".stats", "SELECT id FROM demo", ".stats",
         ])
 

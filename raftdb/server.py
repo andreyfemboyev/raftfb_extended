@@ -90,7 +90,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/status":
-            self.send_json(200, self.server.node.status())
+            state = self.server.node.status()
+            if getattr(self.server, "launch_id", None):
+                state["launch_id"] = self.server.launch_id
+            self.send_json(200, state)
         elif self.path == "/stats":
             self.dispatch(lambda: (200, self.server.node.stats()))
         else:
@@ -179,6 +182,7 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = False
+    allow_reuse_address = os.name != "nt"
 
     def __init__(self, address, node):
         self.node = node

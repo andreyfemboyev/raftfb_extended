@@ -1,10 +1,10 @@
 """Bitcask-style key directory with durable, multi-record transactions."""
 
 from dataclasses import dataclass
-import os
 import struct
 
 from .journal import CorruptionError, Generations, read_frame, write_frame
+from .platform_support import sync_file
 
 
 BEGIN, PUT, DELETE, END = 16, 17, 18, 19
@@ -128,8 +128,7 @@ class KV:
             for record in self.records():
                 write_frame(file, *encode(record))
             write_frame(file, END, b"")
-            file.flush()
-            os.fsync(file.fileno())
+            sync_file(file)
 
     def replace(self, records):
         new = self.generations.create()
